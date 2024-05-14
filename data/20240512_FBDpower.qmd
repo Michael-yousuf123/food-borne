@@ -1,0 +1,78 @@
+---
+title: "Power calculation FBD surveillance Ethiopia"
+author: "Arie Havelaar, Getachew Teshome, Michael Yousuf"
+format: html
+editor: visual
+bibliography: references.bib
+---
+
+## Expected number of visits to health centers
+
+Incidence of diarrheal disease in Ethiopia is approximately 2 per year for children under 5 years of age (CU5) and 1 per year for older persons (O5) @gessese2023.
+
+Catchment population of Hararghe HDSS approx. 325,000 persons of which 15% CU5. A health center serves a population of 10,000 persons.
+
+In rural areas, 43% of mothers consulted a health center for a sick child, 87% of mothers did so in urban areas. There was little difference between consultation behavior for different diseases (diarrhea, fever, respiratory tract infections, others) @assefa2008. No data yet for older persons, assume 5 times lower.
+
+```{r}
+pop <- 10000
+p_cu5 <- 0.15
+
+dat <- data.frame(
+  age = c("u5", "u5", "o5", "o5"),
+  loc = c("rural",  "urban", "rural", "urban"),
+  persons = round(c(p_cu5,
+                    p_cu5,
+                    (1 -p_cu5),
+                    (1 - p_cu5)) * pop, 0)
+)
+
+library(dplyr)
+
+
+ir_wk <- c(2,2,1,1) / 52
+p_visit <- c(0.43, 0.87, 0.43 / 5, 0.87 / 5)
+
+dat <- dat %>% mutate(
+  inc_wk = round(persons * ir_wk, 0),
+  visit_wk = round(inc_wk * p_visit, 0))
+
+dat %>% group_by(loc) %>% 
+  summarize(visits = sum(visit_wk))
+```
+
+So it looks like one data collector per health center per week is a good choice.
+
+## Hazard-specific diarrhea
+
+Proportion of cases with diarrhea who test positive for each hazard. To develop the protocol, we just use two hazards: Campylobacter and ETEC.
+
+Infants in MAL-ED: Campylobacter 30%, ST-ETEC + LT-ETEC 8% @platts-mills2015. Assume older children and adults 10% and 15%.
+
+```{r}
+p_campy <- c(0.30, 0.30, 0.10, 0.10)
+p_etec <- c(0.08, 0.08, 0.15, 0.15)
+
+dat <- dat %>% mutate(
+  inc_campy = round(visit_wk * p_campy, 0),
+  inc_etec = round(visit_wk * p_etec, 0)
+)
+
+dat
+```
+
+Data such as these will become available from each health centre twice per year and will be the core data set for each site. As a next step, we can add uncertianty around the parameters and simulate results in different health centers to create joint data frame.
+
+## Analysis
+
+The main outcome variable is the incidence rate of hazard-specific diarrhea by age group (number of new cases per 100,000 persons per year). Data result from Poisson and binomial processes swith clustering at the healh center level o the statistical analysis will be based on generalized linear mixed models.
+
+## Power calculation
+
+One approach to power calculkation is to extend the simulation to support power calculations. Alternatively, standard formulas or websites are used and the simulations help provide estimates of uncertainty in these calculations. A major challenge is to define the desired precision at the hazard level. The number of positive samples will differ greatly between hazards, and thus the precision of the incidence rate estimates. Do we base power on a commonly occurring hazard, or a rare one? This will have major implications for the sample size in the lab.
+
+# Inputs needed from the team
+
+Reasonable estimates are necessary for all parameters used in the model presented above, separately for each stratum in the data based on age and location. We need a point estimate (mean or median) and indication of the variablity and/or uncertainty around it (standard deviation, range). As far as possible data from Ethiopia, but if there are no data, can we borrow from other countries? The team also needs to decide on age categories: e.g., do we need to add a category of 5-15? What about 70+: higher incidence of diarrhea but small number so little impact on the overall incidence of diarrhea. Are there other variables to stratify the population? Adding more strata would need to be supported by data showing different parameters
+
+We also need a similar model for hospital visits, but I suggest we complete the health center model first and build on that.
